@@ -1,11 +1,11 @@
 // index.js
-const { Client, GatewayIntentBits, Events } = require('discord.js');
+const { Client, GatewayIntentBits, Events, PermissionsBitField } = require('discord.js');
 const fs = require('fs');
 const path = require('path');
 require('dotenv').config();
 
 // ===== CONFIG =====
-const COOLDOWN_MS = 60 * 60 * 1000; // 60 seconds cooldown per /weigh (change this if you want)
+const COOLDOWN_MS = 60 * 60 * 1000; // 1 hour cooldown for /weigh
 
 // ===== DATA STORAGE =====
 const DATA_FILE = path.join(__dirname, 'gold-data.json');
@@ -175,6 +175,25 @@ if (interaction.channelId !== allowedChannel) {
         `Top ${entries.length} vault holders by total ounces:\n\n` +
         lines.join('\n'),
     });
+  }
+  // /resetleaderboard (admin only)
+  if (interaction.commandName === 'resetleaderboard') {
+    // Only server admins can run this
+    if (
+      !interaction.memberPermissions ||
+      !interaction.memberPermissions.has(PermissionsBitField.Flags.Administrator)
+    ) {
+      return interaction.reply({
+        content: '⛔ This command is admin-only.',
+        ephemeral: true,
+      });
+    }
+
+    // Clear all data in memory and save
+    goldData = {};
+    saveData();
+
+    return interaction.reply('🧹 Leaderboard has been reset. Fresh start for everyone.');
   }
 });
 

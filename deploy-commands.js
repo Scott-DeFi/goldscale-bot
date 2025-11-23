@@ -13,6 +13,9 @@ const commands = [
   new SlashCommandBuilder()
     .setName('topgold')
     .setDescription('Show the top gold holders on the server'),
+  new SlashCommandBuilder()
+    .setName('resetleaderboard')
+    .setDescription('Admin only: reset the GoldScale leaderboard'),
 ].map(cmd => cmd.toJSON());
 
 // Set up REST client with your bot token
