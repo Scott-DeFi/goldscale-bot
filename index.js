@@ -99,13 +99,13 @@ function randInt(min, max) {
   return Math.floor(Math.random() * (max - min + 1)) + min;
 }
 
-// Helper: random float between min & max, 2 decimals
+
 function randomOunces(min = 1, max = 31.1) {
   const val = Math.random() * (max - min) + min;
   return Number(val.toFixed(2));
 }
 
-// Decide a “weight rank” based on how heavy the pull is
+// Decide 
 function getWeightRank(oz) {
   if (oz < 5) return 'Dirt Digger';
   if (oz < 10) return 'Copper Collector';
@@ -115,7 +115,7 @@ function getWeightRank(oz) {
   return 'Mythic Nugget Master';
 }
 
-// Fun random rank for /rank
+// random rank for /rank
 function getRandomGoldRank() {
   const pool = [
     'Dirt Digger',
@@ -161,9 +161,7 @@ client.on(Events.InteractionCreate, async interaction => {
     return;
   }
 
-  // -------------------------
-  // BUTTON HANDLER (DUELS)
-  // -------------------------
+
   if (interaction.isButton()) {
     const id = interaction.customId || "";
 
@@ -228,22 +226,21 @@ client.on(Events.InteractionCreate, async interaction => {
 
       saveData();
 
-      return interaction.update({
-        content:
-          `⚔️ **Duel Result**\n` +
-          `🏆 Winner: <@${winnerId}> **(+${DUEL_WIN})**\n` +
-          `💀 Loser: <@${loserId}> **(-${lossAmount})**\n\n` +
-          `📌 Winner Gold: **${winner.points}** | Loser Gold: **${loser.points}**`,
-        components: []
-      });
+     await interaction.reply({
+  content:
+    `⚔️ **Duel Result**\n\n` +
+    `🏆 **Winner:** <@${winnerId}> (+50)\n` +
+    `💀 **Loser:** <@${loserId}> (-${lostAmount})\n\n` +
+    `🏦 **Updated Totals**\n` +
+    `<@${winnerId}>: ${winner.points} gold\n` +
+    `<@${loserId}>: ${loser.points} gold`
+});
     }
 
     return;
   }
 
-  // -------------------------
-  // SLASH COMMAND HANDLER
-  // -------------------------
+  
   if (!interaction.isChatInputCommand()) return;
 
   // /weigh with cooldown + tracking
@@ -256,9 +253,19 @@ client.on(Events.InteractionCreate, async interaction => {
     if (userData.lastWeigh) {
       const diff = now - userData.lastWeigh;
       if (diff < COOLDOWN_MS) {
-        const secondsLeft = Math.ceil((COOLDOWN_MS - diff) / 1000);
-        return interaction.reply({
-          content: `⏳ You need to wait **${secondsLeft}s** before weighing again.`,
+        const remainingMs = COOLDOWN_MS - diff;
+        const minutes = Math.floor(remainingMs / 60000);
+        const seconds = Math.ceil((remainingMs % 60000) / 1000);
+
+        let timeLeft = "";
+      if (minutes > 0) {
+         timeLeft = `${minutes}m ${seconds}s`;
+      } else {
+         timeLeft = `${seconds}s`;
+  }
+
+   return interaction.reply({
+           content: `⏳ You need to wait **${timeLeft}** before weighing again.`,
           ephemeral: true,
         });
       }
@@ -316,7 +323,7 @@ client.on(Events.InteractionCreate, async interaction => {
     });
   }
 
-  // ✅ NEW: /mine (spicy risk + reward)
+
   if (interaction.commandName === 'mine') {
     const userId = interaction.user.id;
     const user = ensureUser(userId);
@@ -341,7 +348,7 @@ client.on(Events.InteractionCreate, async interaction => {
       user.points += delta;
     } else {
       delta = -randInt(5, 15);
-      flavor = "💥 Cave-in. You lost some gold.";
+      flavor = "Cave-in. You lost some gold.";
       user.points = clamp0(user.points + delta);
     }
 
@@ -352,11 +359,11 @@ client.on(Events.InteractionCreate, async interaction => {
     return interaction.reply(
       `${flavor}\n` +
       `🪙 ${interaction.user} mined **${sign}${delta}** gold.\n` +
-      `📌 Total Gold: **${user.points}**`
+      `🏦 Total Gold: **${user.points}**`
     );
   }
 
-  // ✅ NEW: /daily (streak bonus)
+  // /daily (streak bonus)
   if (interaction.commandName === 'daily') {
     const userId = interaction.user.id;
     const user = ensureUser(userId);
@@ -394,7 +401,7 @@ client.on(Events.InteractionCreate, async interaction => {
     );
   }
 
-  // ✅ NEW: /duel @user (accept button)
+  //  /duel @user (accept button)
   if (interaction.commandName === 'duel') {
     const challengerId = interaction.user.id;
     const target = interaction.options.getUser('user');

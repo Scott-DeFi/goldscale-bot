@@ -1,18 +1,50 @@
 {
   "1363700624272916500": {
     "totalOunces": 75.18,
-    "lastWeigh": 1763761776334
+    "lastWeigh": 1763761776334,
+    "points": 221,
+    "lastMine": 1765647585258,
+    "lastDaily": 1765647802729,
+    "dailyStreak": 1,
+    "lastDuel": 1765649584015,
+    "wins": 2,
+    "losses": 0
   },
   "1325488534999662714": {
     "totalOunces": 26.39,
-    "lastWeigh": 1763755345142
+    "lastWeigh": 1763755345142,
+    "points": 75,
+    "lastMine": 1765647961176,
+    "lastDaily": 1765648141462,
+    "dailyStreak": 1,
+    "lastDuel": 1765649935662,
+    "wins": 0,
+    "losses": 2
   },
   "1239131710927405067": {
     "totalOunces": 1.94,
-    "lastWeigh": 1763732721003
+    "lastWeigh": 1763732721003,
+    "points": 0,
+    "lastMine": 1765649572019,
+    "lastDaily": 0,
+    "dailyStreak": 0,
+    "lastDuel": 1765649584015,
+    "wins": 0,
+    "losses": 1
   },
   "451266400388907009": {
     "totalOunces": 40.16,
     "lastWeigh": 1763760261462
+  },
+  "1382433433158029433": {
+    "totalOunces": 0,
+    "lastWeigh": 0,
+    "points": 182,
+    "lastMine": 1765649879326,
+    "lastDaily": 1765650216125,
+    "dailyStreak": 1,
+    "lastDuel": 1765649935662,
+    "wins": 1,
+    "losses": 0
   }
 }
