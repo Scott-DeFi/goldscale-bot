@@ -7,6 +7,7 @@ const {
   ActionRowBuilder,
   ButtonBuilder,
   ButtonStyle,
+  EmbedBuilder,
 } = require('discord.js');
 
 const fs = require('fs');
@@ -18,7 +19,7 @@ const COOLDOWN_MS = 60 * 60 * 1000; // 1 hour cooldown for /weigh
 const MINE_COOLDOWN_MS = 60 * 60 * 1000; // 1 hour cooldown for /mine
 const DAILY_COOLDOWN_MS = 24 * 60 * 60 * 1000; // 24h for /daily
 const DUEL_COOLDOWN_MS = 30 * 60 * 1000; // 30 min cooldown for /duel
-const DUEL_EXPIRE_MS = 60 * 1000; // accept window 60 seconds
+const DUEL_EXPIRE_MS = 3 * 60 * 1000; // 3 min to accept/decline duel
 
 const DUEL_WIN = 50;
 const DUEL_LOSS = 35;
@@ -226,15 +227,37 @@ client.on(Events.InteractionCreate, async interaction => {
 
       saveData();
 
-     await interaction.reply({
-  content:
-    `⚔️ **Duel Result**\n\n` +
-    `🏆 **Winner:** <@${winnerId}> (+50)\n` +
-    `💀 **Loser:** <@${loserId}> (-${lostAmount})\n\n` +
-    `🏦 **Updated Totals**\n` +
-    `<@${winnerId}>: ${winner.points} gold\n` +
-    `<@${loserId}>: ${loser.points} gold`
-});
+     const winnerUser = await client.users.fetch(winnerId);
+     const loserUser = await client.users.fetch(loserId);
+
+     const duelEmbed = new EmbedBuilder()
+     .setTitle('⚔️ Duel Result')
+    .setColor(0xf5c542) // gold vibe
+    .setThumbnail(winnerUser.displayAvatarURL({ dynamic: true, size: 256 }))
+    .addFields(
+    {
+      name: '🏆 Winner',
+      value: `<@${winnerId}> (+${DUEL_WIN})`,
+      inline: true,
+    },
+    {
+      name: '💀 Loser',
+      value: `<@${loserId}> (-${lostAmount})`,
+      inline: true,
+    },
+    {
+      name: '🏦 Updated Totals',
+      value:
+        `<@${winnerId}>: **${winner.points}** gold\n` +
+        `<@${loserId}>: **${loser.points}** gold`,
+      }
+   )
+    .setFooter({
+      text: `${loserUser.username}`,
+      iconURL: loserUser.displayAvatarURL({ dynamic: true, size: 64 }),
+   });
+
+    await interaction.reply({ embeds: [duelEmbed] });
     }
 
     return;
@@ -284,7 +307,7 @@ client.on(Events.InteractionCreate, async interaction => {
       content:
         `💰 **Your gold weighs:** \`${ounces} troy oz\`\n` +
         `🏅 **Rank for this weigh:** ${rank}\n` +
-        `📊 **Your total:** \`${userData.totalOunces.toFixed(2)} troy oz\``,
+        `🏦 **Your total:** \`${userData.totalOunces.toFixed(2)} troy oz\``,
     });
   }
 
@@ -330,11 +353,21 @@ client.on(Events.InteractionCreate, async interaction => {
 
     const diff = now - (user.lastMine || 0);
     if (diff < MINE_COOLDOWN_MS) {
-      const secondsLeft = Math.ceil((MINE_COOLDOWN_MS - diff) / 1000);
+      const remainingMs = MINE_COOLDOWN_MS - diff;
+      const minutes = Math.floor(remainingMs / 60000);
+      const seconds = Math.ceil((remainingMs % 60000) / 1000);
+
+      let timeLeft = "";
+   if (minutes > 0) {
+      timeLeft = `${minutes}m ${seconds}s`;
+      } else {
+        timeLeft = `${seconds}s`;
+     }
+
       return interaction.reply({
-        content: `⏳ Mine cooldown. Wait **${secondsLeft}s**.`,
-        ephemeral: true
-      });
+         content: `⏳ Mine cooldown. Wait **${timeLeft}**.`,
+         ephemeral: true
+    });
     }
 
     // 80% win (+10..+30), 20% cave-in (-5..-15)
@@ -397,7 +430,7 @@ client.on(Events.InteractionCreate, async interaction => {
       `🎁 ${interaction.user} claimed daily gold.\n` +
       `🔥 Streak: **${user.dailyStreak}** days\n` +
       `🪙 Payout: **+${total}** (Base ${base} + Streak ${streakBonus})\n` +
-      `📌 Total Gold: **${user.points}**`
+      `🏦 Total Gold: **${user.points}**`
     );
   }
 
@@ -421,15 +454,25 @@ client.on(Events.InteractionCreate, async interaction => {
 
     // Duel cooldown check (both)
     const cDiff = now - (challenger.lastDuel || 0);
-    if (cDiff < DUEL_COOLDOWN_MS) {
-      const secondsLeft = Math.ceil((DUEL_COOLDOWN_MS - cDiff) / 1000);
-      return interaction.reply({ content: `⏳ You’re on duel cooldown: **${secondsLeft}s**`, ephemeral: true });
-    }
+      if (cDiff < DUEL_COOLDOWN_MS) {
+    const remainingMs = DUEL_COOLDOWN_MS - cDiff;
+    const minutes = Math.floor(remainingMs / 60000);
+    const seconds = Math.ceil((remainingMs % 60000) / 1000);
+    const timeLeft = minutes > 0 ? `${minutes}m ${seconds}s` : `${seconds}s`;
 
-    const tDiff = now - (targetUser.lastDuel || 0);
-    if (tDiff < DUEL_COOLDOWN_MS) {
-      return interaction.reply({ content: `⏳ ${target} is on duel cooldown. Try later.`, ephemeral: true });
-    }
+    return interaction.reply({
+    content: `⏳ You’re on duel cooldown. Try again in **${timeLeft}**.`,
+    ephemeral: true
+  });
+}
+
+const tDiff = now - (targetUser.lastDuel || 0);
+if (tDiff < DUEL_COOLDOWN_MS) {
+  return interaction.reply({
+    content: `⏳ ${target} is on duel cooldown. Try later.`,
+    ephemeral: true
+  });
+}
 
     // Create duel buttons
     const createdAt = now;
@@ -444,13 +487,13 @@ client.on(Events.InteractionCreate, async interaction => {
         .setStyle(ButtonStyle.Danger),
     );
 
-    return interaction.reply({
-      content:
-        `⚔️ ${target}, you’ve been challenged by ${interaction.user}.\n` +
-        `Stakes: Winner **+${DUEL_WIN}** | Loser **-${DUEL_LOSS}** (never below 0)\n` +
-        `⏳ Accept within **60s**.`,
-      components: [row]
-    });
+      return interaction.reply({
+       content:
+         `⚔️ ${target}, you’ve been challenged by ${interaction.user}.\n` +
+         `Stakes: Winner **+${DUEL_WIN}** | Loser **-${DUEL_LOSS}** (never below 0)\n` +
+         `⏳ Accept within **3 minutes**.`,
+       components: [row]
+   });
   }
 
   // /resetleaderboard (admin only) — now resets arcade stats too
