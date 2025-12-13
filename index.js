@@ -259,11 +259,12 @@ const duelEmbed = new EmbedBuilder()
     iconURL: loserMember.displayAvatarURL({ extension: 'png', size: 64 }),
   });
 
-await interaction.reply({
+await interaction.update({
+  content: null,
   embeds: [duelEmbed],
   components: [],
 });
-      return;
+return;
     }
 
     return;
@@ -500,7 +501,16 @@ const targetMember = await interaction.guild.members.fetch(target.id);
 const challengeEmbed = new EmbedBuilder()
   .setTitle('⚔️ Duel Challenge')
   .setColor(0xf5c542)
-  .setThumbnail(challengerMember.displayAvatarURL({ extension: 'png', size: 256 }))
+
+  // Challenger avatar shows up here (top-left)
+  .setAuthor({
+    name: `Challenger: ${challengerMember.user.username}`,
+    iconURL: challengerMember.displayAvatarURL({ extension: 'png', size: 64 }),
+  })
+
+  // Challenged avatar shows up here (right thumbnail)
+  .setThumbnail(targetMember.displayAvatarURL({ extension: 'png', size: 256 }))
+
   .addFields(
     { name: 'Challenger', value: `<@${challengerId}>`, inline: true },
     { name: 'Challenged', value: `<@${target.id}>`, inline: true },
@@ -511,6 +521,7 @@ const challengeEmbed = new EmbedBuilder()
     },
     { name: '⏳ Time Limit', value: 'Accept within **3 minutes**.', inline: false },
   )
+
   .setFooter({
     text: `Target: ${targetMember.user.username}`,
     iconURL: targetMember.displayAvatarURL({ extension: 'png', size: 64 }),
