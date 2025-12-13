@@ -480,26 +480,47 @@ if (tDiff < DUEL_COOLDOWN_MS) {
   });
 }
 
-    // Create duel buttons
-    const createdAt = now;
-    const row = new ActionRowBuilder().addComponents(
-      new ButtonBuilder()
-        .setCustomId(`duel:accept:${challengerId}:${target.id}:${createdAt}`)
-        .setLabel('Accept Duel')
-        .setStyle(ButtonStyle.Success),
-      new ButtonBuilder()
-        .setCustomId(`duel:decline:${challengerId}:${target.id}:${createdAt}`)
-        .setLabel('Decline')
-        .setStyle(ButtonStyle.Danger),
-    );
+// Create duel buttons
+const createdAt = now;
+const row = new ActionRowBuilder().addComponents(
+  new ButtonBuilder()
+    .setCustomId(`duel:accept:${challengerId}:${target.id}:${createdAt}`)
+    .setLabel('Accept Duel')
+    .setStyle(ButtonStyle.Success),
+  new ButtonBuilder()
+    .setCustomId(`duel:decline:${challengerId}:${target.id}:${createdAt}`)
+    .setLabel('Decline')
+    .setStyle(ButtonStyle.Danger),
+);
 
-      return interaction.reply({
-       content:
-         `⚔️ ${target}, you’ve been challenged by ${interaction.user}.\n` +
-         `Stakes: Winner **+${DUEL_WIN}** | Loser **-${DUEL_LOSS}** (never below 0)\n` +
-         `⏳ Accept within **3 minutes**.`,
-       components: [row]
-   });
+// Fetch members for avatars (guild-scoped)
+const challengerMember = await interaction.guild.members.fetch(challengerId);
+const targetMember = await interaction.guild.members.fetch(target.id);
+
+const challengeEmbed = new EmbedBuilder()
+  .setTitle('⚔️ Duel Challenge')
+  .setColor(0xf5c542)
+  .setThumbnail(challengerMember.displayAvatarURL({ extension: 'png', size: 256 }))
+  .addFields(
+    { name: 'Challenger', value: `<@${challengerId}>`, inline: true },
+    { name: 'Challenged', value: `<@${target.id}>`, inline: true },
+    {
+      name: '💰 Stakes',
+      value: `Winner **+${DUEL_WIN}** | Loser **-${DUEL_LOSS}** (never below 0)`,
+      inline: false,
+    },
+    { name: '⏳ Time Limit', value: 'Accept within **3 minutes**.', inline: false },
+  )
+  .setFooter({
+    text: `Target: ${targetMember.user.username}`,
+    iconURL: targetMember.displayAvatarURL({ extension: 'png', size: 64 }),
+  });
+
+return interaction.reply({
+  content: `${target}, you’ve been challenged by ${interaction.user}.`,
+  embeds: [challengeEmbed],
+  components: [row],
+});
   }
 
   // /resetleaderboard (admin only) — now resets arcade stats too
