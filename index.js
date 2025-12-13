@@ -227,14 +227,15 @@ client.on(Events.InteractionCreate, async interaction => {
 
       saveData();
 
-     const winnerUser = await client.users.fetch(winnerId);
-     const loserUser = await client.users.fetch(loserId);
+     // Fetch members for reliable avatars (guild-scoped)
+const winnerMember = await interaction.guild.members.fetch(winnerId);
+const loserMember  = await interaction.guild.members.fetch(loserId);
 
-     const duelEmbed = new EmbedBuilder()
-     .setTitle('⚔️ Duel Result')
-    .setColor(0xf5c542) // gold vibe
-    .setThumbnail(winnerUser.displayAvatarURL({ dynamic: true, size: 256 }))
-    .addFields(
+const duelEmbed = new EmbedBuilder()
+  .setTitle('⚔️ Duel Result')
+  .setColor(0xf5c542) // gold vibe
+  .setThumbnail(winnerMember.displayAvatarURL({ extension: 'png', size: 256 }))
+  .addFields(
     {
       name: '🏆 Winner',
       value: `<@${winnerId}> (+${DUEL_WIN})`,
@@ -242,7 +243,7 @@ client.on(Events.InteractionCreate, async interaction => {
     },
     {
       name: '💀 Loser',
-      value: `<@${loserId}> (-${lostAmount})`,
+      value: `<@${loserId}> (-${lossAmount})`,
       inline: true,
     },
     {
@@ -250,14 +251,19 @@ client.on(Events.InteractionCreate, async interaction => {
       value:
         `<@${winnerId}>: **${winner.points}** gold\n` +
         `<@${loserId}>: **${loser.points}** gold`,
-      }
-   )
-    .setFooter({
-      text: `${loserUser.username}`,
-      iconURL: loserUser.displayAvatarURL({ dynamic: true, size: 64 }),
-   });
+      inline: false,
+    }
+  )
+  .setFooter({
+    text: `Defeated: ${loserMember.user.username}`,
+    iconURL: loserMember.displayAvatarURL({ extension: 'png', size: 64 }),
+  });
 
-    await interaction.reply({ embeds: [duelEmbed] });
+await interaction.reply({
+  embeds: [duelEmbed],
+  components: [],
+});
+      return;
     }
 
     return;
