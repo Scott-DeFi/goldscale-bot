@@ -62,8 +62,14 @@ function ensureUser(userId) {
       totalOunces: 0,
       lastWeigh: 0,
 
-      // Arcade additions
+      // "total" gold shown to users
       points: 0,
+
+      // NEW: bucketed gold sources (lets you reset independently)
+      minedGold: 0,
+      dailyGold: 0,
+      duelGold: 0,
+
       lastMine: 0,
       lastDaily: 0,
       dailyStreak: 0,
@@ -74,8 +80,9 @@ function ensureUser(userId) {
     return goldData[userId];
   }
 
-  // backfill fields for existing users
   const u = goldData[userId];
+
+  // existing backfills
   if (typeof u.points !== 'number') u.points = 0;
   if (typeof u.lastMine !== 'number') u.lastMine = 0;
   if (typeof u.lastDaily !== 'number') u.lastDaily = 0;
@@ -83,10 +90,13 @@ function ensureUser(userId) {
   if (typeof u.lastDuel !== 'number') u.lastDuel = 0;
   if (typeof u.wins !== 'number') u.wins = 0;
   if (typeof u.losses !== 'number') u.losses = 0;
-
-  // keep weigh fields safe too
   if (typeof u.totalOunces !== 'number') u.totalOunces = 0;
   if (typeof u.lastWeigh !== 'number') u.lastWeigh = 0;
+
+  // NEW bucket fields (migration-safe)
+  if (typeof u.minedGold !== 'number') u.minedGold = u.points; // preserves old totals
+  if (typeof u.dailyGold !== 'number') u.dailyGold = 0;
+  if (typeof u.duelGold !== 'number') u.duelGold = 0;
 
   return u;
 }
@@ -95,6 +105,14 @@ function ensureUser(userId) {
 function clamp0(n) {
   return Math.max(0, n);
 }
+
+function recomputeTotal(u) {
+  const mined = clamp0(u.minedGold || 0);
+  const daily = clamp0(u.dailyGold || 0);
+  const duel  = clamp0(u.duelGold || 0);
+  u.points = mined + daily + duel;
+}
+
 
 function randInt(min, max) {
   return Math.floor(Math.random() * (max - min + 1)) + min;
@@ -213,10 +231,31 @@ client.on(Events.InteractionCreate, async interaction => {
       const winner = ensureUser(winnerId);
       const loser = ensureUser(loserId);
 
-      // Apply payouts
-      winner.points += DUEL_WIN;
-      const lossAmount = Math.min(DUEL_LOSS, loser.points);
-      loser.points = clamp0(loser.points - lossAmount);
+      // Apply payouts (bucketed)
+winner.duelGold = (winner.duelGold || 0) + DUEL_WIN;
+
+const loserTotal = loser.points;
+const lossAmount = Math.min(DUEL_LOSS, loserTotal);
+
+loser.duelGold = (loser.duelGold || 0) - lossAmount;
+
+if (loser.duelGold < 0) {
+  let remainder = Math.abs(loser.duelGold);
+  loser.duelGold = 0;
+
+  const takeMined = Math.min(remainder, loser.minedGold || 0);
+  loser.minedGold = clamp0((loser.minedGold || 0) - takeMined);
+  remainder -= takeMined;
+
+  if (remainder > 0) {
+    const takeDaily = Math.min(remainder, loser.dailyGold || 0);
+    loser.dailyGold = clamp0((loser.dailyGold || 0) - takeDaily);
+    remainder -= takeDaily;
+  }
+}
+
+recomputeTotal(winner);
+recomputeTotal(loser);
 
       winner.wins += 1;
       loser.losses += 1;
@@ -301,11 +340,11 @@ return;
       }
     }
 
-    // Not on cooldown → generate ounces
+    
     const ounces = randomOunces();
     const rank = getWeightRank(ounces);
 
-    // Update totals
+  
     userData.totalOunces += ounces;
     userData.lastWeigh = now;
     saveData();
@@ -383,14 +422,16 @@ return;
     let flavor = "";
 
     if (roll <= 80) {
-      delta = randInt(10, 30);
-      flavor = "⛏️ Clean pull.";
-      user.points += delta;
-    } else {
-      delta = -randInt(5, 15);
-      flavor = "Cave-in. You lost some gold.";
-      user.points = clamp0(user.points + delta);
-    }
+  delta = randInt(10, 30);
+  flavor = "⛏️ Clean pull.";
+  user.minedGold = (user.minedGold || 0) + delta;
+} else {
+  delta = -randInt(5, 15);
+  flavor = "Cave-in. You lost some gold.";
+  user.minedGold = clamp0((user.minedGold || 0) + delta);
+}
+
+recomputeTotal(user);
 
     user.lastMine = now;
     saveData();
@@ -428,7 +469,8 @@ return;
     const streakBonus = Math.min(user.dailyStreak * 10, 100); // +10/day, cap +100
     const total = base + streakBonus;
 
-    user.points += total;
+    user.dailyGold = (user.dailyGold || 0) + total;
+    recomputeTotal(user);
     user.lastDaily = now;
 
     saveData();
@@ -534,23 +576,106 @@ return interaction.reply({
 });
   }
 
-  // /resetleaderboard (admin only) — now resets arcade stats too
-  if (interaction.commandName === 'resetleaderboard') {
-    if (
-      !interaction.memberPermissions ||
-      !interaction.memberPermissions.has(PermissionsBitField.Flags.Administrator)
-    ) {
-      return interaction.reply({
-        content: '⛔ This command is admin-only.',
-        ephemeral: true,
-      });
-    }
+  // ===== ADMIN RESET HELPERS =====
+function isAdmin(interaction) {
+  return (
+    interaction.memberPermissions &&
+    interaction.memberPermissions.has(PermissionsBitField.Flags.Administrator)
+  );
+}
 
-    goldData = {};
-    saveData();
-
-    return interaction.reply('🧹 Leaderboard has been reset. Fresh start for everyone.');
+function doWeightReset() {
+  for (const userId of Object.keys(goldData)) {
+    const u = ensureUser(userId);
+    u.totalOunces = 0;
+    u.lastWeigh = 0;
   }
+}
+
+function doMineReset() {
+  for (const userId of Object.keys(goldData)) {
+    const u = ensureUser(userId);
+    u.minedGold = 0;
+    u.lastMine = 0;
+    recomputeTotal(u);
+  }
+}
+
+function doDuelReset() {
+  for (const userId of Object.keys(goldData)) {
+    const u = ensureUser(userId);
+    u.duelGold = 0;
+    u.wins = 0;
+    u.losses = 0;
+    u.lastDuel = 0;
+    recomputeTotal(u);
+  }
+}
+
+function doSeasonReset() {
+  for (const userId of Object.keys(goldData)) {
+    const u = ensureUser(userId);
+
+    u.totalOunces = 0;
+    u.lastWeigh = 0;
+
+    u.minedGold = 0;
+    u.dailyGold = 0;
+    u.duelGold = 0;
+    u.points = 0;
+
+    u.lastMine = 0;
+    u.lastDaily = 0;
+    u.dailyStreak = 0;
+
+    u.lastDuel = 0;
+    u.wins = 0;
+    u.losses = 0;
+  }
+}
+
+// ===== ADMIN RESET COMMANDS =====
+
+// alias: keep /resetleaderboard, but make it ONLY reset weights
+if (interaction.commandName === 'resetleaderboard') {
+  if (!isAdmin(interaction)) {
+    return interaction.reply({ content: '⛔ This command is admin-only.', ephemeral: true });
+  }
+
+  doWeightReset();
+  saveData();
+  return interaction.reply('🧹 Leaderboard has been reset.');
+}
+
+if (interaction.commandName === 'minereset') {
+  if (!isAdmin(interaction)) {
+    return interaction.reply({ content: '⛔ This command is admin-only.', ephemeral: true });
+  }
+
+  doMineReset();
+  saveData();
+  return interaction.reply('🧹 Mine reset: mined gold + mine cooldown wiped.');
+}
+
+if (interaction.commandName === 'duelreset') {
+  if (!isAdmin(interaction)) {
+    return interaction.reply({ content: '⛔ This command is admin-only.', ephemeral: true });
+  }
+
+  doDuelReset();
+  saveData();
+  return interaction.reply('🧹 Duel reset: duel gold + W/L + duel cooldown wiped.');
+}
+
+if (interaction.commandName === 'seasonreset') {
+  if (!isAdmin(interaction)) {
+    return interaction.reply({ content: '⛔ This command is admin-only.', ephemeral: true });
+  }
+
+  doSeasonReset();
+  saveData();
+  return interaction.reply('🧹 Season reset: everything wiped.');
+}
 });
 
 // Log in the bot

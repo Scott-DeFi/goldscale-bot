@@ -10,30 +10,42 @@ const commands = [
 
   new SlashCommandBuilder()
     .setName('rank')
-    .setDescription('Find out your gold rank'),
+    .setDescription('View your gold rank'),
 
   new SlashCommandBuilder()
     .setName('topgold')
-    .setDescription('Show the top gold holders on the server'),
+    .setDescription('View the top gold holders'),
 
   new SlashCommandBuilder()
     .setName('resetleaderboard')
-    .setDescription('Admin only: reset the GoldScale leaderboard'),
+    .setDescription('Admin only: reset TopGold (/weigh) leaderboard'),
 
-  // ✅ NEW: /mine
+      new SlashCommandBuilder()
+    .setName('minereset')
+    .setDescription('Admin only: reset mine gold + mine cooldown'),
+
+  new SlashCommandBuilder()
+    .setName('duelreset')
+    .setDescription('Admin only: reset duel gold + W/L + duel cooldown'),
+
+  new SlashCommandBuilder()
+    .setName('seasonreset')
+    .setDescription('Admin only: full season reset (everything)'),
+
+  //  /mine
   new SlashCommandBuilder()
     .setName('mine')
-    .setDescription('⛏️ Mine for gold (spicy risk/reward)'),
+    .setDescription('⛏️ Mine for gold (risk/reward)'),
 
-  // ✅ NEW: /daily
+  // /daily
   new SlashCommandBuilder()
     .setName('daily')
-    .setDescription('🎁 Claim daily gold + streak bonus'),
+    .setDescription('Daily gold + streak bonus'),
 
-  // ✅ NEW: /duel @user
+  //  /duel @user
   new SlashCommandBuilder()
     .setName('duel')
-    .setDescription('⚔️ Challenge someone to a duel (winner gains, loser loses)')
+    .setDescription('⚔️ Challenge someone to a duel (Win gold. Risk gold.)')
     .addUserOption(opt =>
       opt.setName('user')
         .setDescription('Who you want to duel')
