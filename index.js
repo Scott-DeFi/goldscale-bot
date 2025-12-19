@@ -359,53 +359,68 @@ return;
 
 
   if (interaction.commandName === 'mine') {
-    const userId = interaction.user.id;
-    const user = ensureUser(userId);
+  const userId = interaction.user.id;
+  const user = ensureUser(userId);
 
-    const diff = now - (user.lastMine || 0);
-    if (diff < MINE_COOLDOWN_MS) {
-      const remainingMs = MINE_COOLDOWN_MS - diff;
-      const minutes = Math.floor(remainingMs / 60000);
-      const seconds = Math.ceil((remainingMs % 60000) / 1000);
+  const diff = now - (user.lastMine || 0);
+  if (diff < MINE_COOLDOWN_MS) {
+    const remainingMs = MINE_COOLDOWN_MS - diff;
+    const minutes = Math.floor(remainingMs / 60000);
+    const seconds = Math.ceil((remainingMs % 60000) / 1000);
 
-      let timeLeft = "";
-   if (minutes > 0) {
-      timeLeft = `${minutes}m ${seconds}s`;
-      } else {
-        timeLeft = `${seconds}s`;
-     }
+    const timeLeft = minutes > 0 ? `${minutes}m ${seconds}s` : `${seconds}s`;
 
-      return interaction.reply({
-         content: `⏳ Mine cooldown. Wait **${timeLeft}**.`,
-         ephemeral: true
+    return interaction.reply({
+      content: `⏳ Mine cooldown. Wait **${timeLeft}**.`,
+      ephemeral: true
     });
-    }
-
-    // 80% win (+10..+30), 20% cave-in (-5..-15)
-    const roll = randInt(1, 100);
-    let delta = 0;
-    let flavor = "";
-
-    if (roll <= 80) {
-  delta = randInt(10, 30);
-  flavor = "⛏️ Clean pull.";
-  user.points = (user.points || 0) + delta;
-} else {
-  delta = -randInt(5, 15);
-  flavor = "Cave-in. You lost some gold.";
-  user.points = clamp0((user.points || 0) + delta);
-}
-
-    user.lastMine = now;
-    saveData();
-
-    const sign = delta >= 0 ? "+" : "";
-    return interaction.reply(
-      `${flavor}\n` +
-      `🪙 ${interaction.user} mined **${sign}${delta}** gold.\n` +
-      `🏦 Total Gold: **${user.points}**`
-    );
   }
+
+  //  MINING SEQUENCE
+  await interaction.deferReply();
+
+  const frames = [
+    "🪨🪨🪨🪨🪨🪨🪨🪨🪨\n⛏️ Mining...",
+    "🪨🪨🪨🪨🪨🪨🪨🪨🪨\n⛏️ Mining..",
+    "🪨🪨🪨🪨🪨🪨🪨🪨🪨\n⛏️ Mining.",
+    "⚡️🪨⚡️🪨⚡️🪨⚡️🪨⚡️\n⛏️ *CHIP*",
+    "💥🪨💥🪨💥🪨💥🪨💥\n⛏️ *CRACK*",
+  ];
+
+  for (const frame of frames) {
+    await interaction.editReply(frame);
+    await new Promise(r => setTimeout(r, 550));
+  }
+
+  // ROLL RESULT (UNCHANGED LOGIC)
+  const roll = randInt(1, 100);
+  let delta = 0;
+  let flavor = "";
+  let emoji = "";
+
+  if (roll <= 80) {
+    delta = randInt(10, 30);
+    emoji = "🏆";
+    flavor = "Paydirt 💰.";
+    user.points += delta;
+  } else {
+    delta = -randInt(5, 15);
+    emoji = "🧨";
+    flavor = "Cave-in 🪨.";
+    user.points = clamp0(user.points + delta);
+  }
+
+  user.lastMine = now;
+  saveData();
+
+  const sign = delta >= 0 ? "+" : "";
+
+  return interaction.editReply(
+    `${emoji} **${flavor}**\n` +
+    `🪙 ${interaction.user} mined **${sign}${delta}** gold\n` +
+    `🏦 Total Gold: **${user.points}**`
+  );
+}
 
   // /daily (streak bonus)
   if (interaction.commandName === 'daily') {
