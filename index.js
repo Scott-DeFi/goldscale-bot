@@ -59,20 +59,19 @@ function saveData() {
 function ensureUser(userId) {
   if (!goldData[userId]) {
     goldData[userId] = {
+      // /weigh bucket
       totalOunces: 0,
       lastWeigh: 0,
 
-      // "total" gold shown to users
+      // single gold bucket (mine + daily + duel +/-)
       points: 0,
 
-      // NEW: bucketed gold sources (lets you reset independently)
-      minedGold: 0,
-      dailyGold: 0,
-      duelGold: 0,
-
+      // mine + daily
       lastMine: 0,
       lastDaily: 0,
       dailyStreak: 0,
+
+      // duel
       lastDuel: 0,
       wins: 0,
       losses: 0,
@@ -82,21 +81,19 @@ function ensureUser(userId) {
 
   const u = goldData[userId];
 
-  // existing backfills
-  if (typeof u.points !== 'number') u.points = 0;
-  if (typeof u.lastMine !== 'number') u.lastMine = 0;
-  if (typeof u.lastDaily !== 'number') u.lastDaily = 0;
-  if (typeof u.dailyStreak !== 'number') u.dailyStreak = 0;
-  if (typeof u.lastDuel !== 'number') u.lastDuel = 0;
-  if (typeof u.wins !== 'number') u.wins = 0;
-  if (typeof u.losses !== 'number') u.losses = 0;
+  // backfills (migration-safe)
   if (typeof u.totalOunces !== 'number') u.totalOunces = 0;
   if (typeof u.lastWeigh !== 'number') u.lastWeigh = 0;
 
-  // NEW bucket fields (migration-safe)
-  if (typeof u.minedGold !== 'number') u.minedGold = u.points; // preserves old totals
-  if (typeof u.dailyGold !== 'number') u.dailyGold = 0;
-  if (typeof u.duelGold !== 'number') u.duelGold = 0;
+  if (typeof u.points !== 'number') u.points = 0;
+
+  if (typeof u.lastMine !== 'number') u.lastMine = 0;
+  if (typeof u.lastDaily !== 'number') u.lastDaily = 0;
+  if (typeof u.dailyStreak !== 'number') u.dailyStreak = 0;
+
+  if (typeof u.lastDuel !== 'number') u.lastDuel = 0;
+  if (typeof u.wins !== 'number') u.wins = 0;
+  if (typeof u.losses !== 'number') u.losses = 0;
 
   return u;
 }
@@ -105,14 +102,6 @@ function ensureUser(userId) {
 function clamp0(n) {
   return Math.max(0, n);
 }
-
-function recomputeTotal(u) {
-  const mined = clamp0(u.minedGold || 0);
-  const daily = clamp0(u.dailyGold || 0);
-  const duel  = clamp0(u.duelGold || 0);
-  u.points = mined + daily + duel;
-}
-
 
 function randInt(min, max) {
   return Math.floor(Math.random() * (max - min + 1)) + min;
@@ -169,7 +158,7 @@ client.once(Events.ClientReady, readyClient => {
 client.on(Events.InteractionCreate, async interaction => {
   const now = Date.now();
 
-  // Buttons (duel accept/decline) should still be allowed only in the same channel
+  // Buttons (duel accept/decline) 
   if (interaction.channelId !== allowedChannel) {
     if (interaction.isChatInputCommand() || interaction.isButton()) {
       return interaction.reply({
@@ -231,38 +220,14 @@ client.on(Events.InteractionCreate, async interaction => {
       const winner = ensureUser(winnerId);
       const loser = ensureUser(loserId);
 
-      // Apply payouts (bucketed)
-winner.duelGold = (winner.duelGold || 0) + DUEL_WIN;
+      // Apply payouts (single-bucket model)
+     winner.points = (winner.points || 0) + DUEL_WIN;
 
-const loserTotal = loser.points;
-const lossAmount = Math.min(DUEL_LOSS, loserTotal);
-
-loser.duelGold = (loser.duelGold || 0) - lossAmount;
-
-if (loser.duelGold < 0) {
-  let remainder = Math.abs(loser.duelGold);
-  loser.duelGold = 0;
-
-  const takeMined = Math.min(remainder, loser.minedGold || 0);
-  loser.minedGold = clamp0((loser.minedGold || 0) - takeMined);
-  remainder -= takeMined;
-
-  if (remainder > 0) {
-    const takeDaily = Math.min(remainder, loser.dailyGold || 0);
-    loser.dailyGold = clamp0((loser.dailyGold || 0) - takeDaily);
-    remainder -= takeDaily;
-  }
-}
-
-recomputeTotal(winner);
-recomputeTotal(loser);
+     const lossAmount = Math.min(DUEL_LOSS, loser.points);
+     loser.points = clamp0((loser.points || 0) - lossAmount);
 
       winner.wins += 1;
       loser.losses += 1;
-
-      // Update duel cooldowns to prevent chain spam (both get cooldown)
-      challenger.lastDuel = now;
-      target.lastDuel = now;
 
       saveData();
 
@@ -424,14 +389,12 @@ return;
     if (roll <= 80) {
   delta = randInt(10, 30);
   flavor = "⛏️ Clean pull.";
-  user.minedGold = (user.minedGold || 0) + delta;
+  user.points = (user.points || 0) + delta;
 } else {
   delta = -randInt(5, 15);
   flavor = "Cave-in. You lost some gold.";
-  user.minedGold = clamp0((user.minedGold || 0) + delta);
+  user.points = clamp0((user.points || 0) + delta);
 }
-
-recomputeTotal(user);
 
     user.lastMine = now;
     saveData();
@@ -469,8 +432,7 @@ recomputeTotal(user);
     const streakBonus = Math.min(user.dailyStreak * 10, 100); // +10/day, cap +100
     const total = base + streakBonus;
 
-    user.dailyGold = (user.dailyGold || 0) + total;
-    recomputeTotal(user);
+    user.points = (user.points || 0) + total;
     user.lastDaily = now;
 
     saveData();
@@ -499,9 +461,8 @@ recomputeTotal(user);
     }
 
     const challenger = ensureUser(challengerId);
-    const targetUser = ensureUser(target.id);
 
-    // Duel cooldown check (both)
+    // check starter cooldown
     const cDiff = now - (challenger.lastDuel || 0);
       if (cDiff < DUEL_COOLDOWN_MS) {
     const remainingMs = DUEL_COOLDOWN_MS - cDiff;
@@ -515,13 +476,8 @@ recomputeTotal(user);
   });
 }
 
-const tDiff = now - (targetUser.lastDuel || 0);
-if (tDiff < DUEL_COOLDOWN_MS) {
-  return interaction.reply({
-    content: `⏳ ${target} is on duel cooldown. Try later.`,
-    ephemeral: true
-  });
-}
+challenger.lastDuel = now;
+saveData();
 
 // Create duel buttons
 const createdAt = now;
@@ -584,6 +540,7 @@ function isAdmin(interaction) {
   );
 }
 
+// TopGold (/weigh) reset ONLY
 function doWeightReset() {
   for (const userId of Object.keys(goldData)) {
     const u = ensureUser(userId);
@@ -592,51 +549,35 @@ function doWeightReset() {
   }
 }
 
+// Gold economy reset (single-bucket points + cooldowns/stats)
 function doMineReset() {
   for (const userId of Object.keys(goldData)) {
     const u = ensureUser(userId);
-    u.minedGold = 0;
-    u.lastMine = 0;
-    recomputeTotal(u);
-  }
-}
 
-function doDuelReset() {
-  for (const userId of Object.keys(goldData)) {
-    const u = ensureUser(userId);
-    u.duelGold = 0;
-    u.wins = 0;
-    u.losses = 0;
-    u.lastDuel = 0;
-    recomputeTotal(u);
-  }
-}
-
-function doSeasonReset() {
-  for (const userId of Object.keys(goldData)) {
-    const u = ensureUser(userId);
-
-    u.totalOunces = 0;
-    u.lastWeigh = 0;
-
-    u.minedGold = 0;
-    u.dailyGold = 0;
-    u.duelGold = 0;
+    // single gold balance
     u.points = 0;
 
+    // mine + daily
     u.lastMine = 0;
     u.lastDaily = 0;
     u.dailyStreak = 0;
 
+    // duel
     u.lastDuel = 0;
     u.wins = 0;
     u.losses = 0;
   }
 }
 
+// Full season reset (TopGold + Gold economy)
+function doSeasonReset() {
+  doWeightReset();
+  doMineReset();
+}
+
 // ===== ADMIN RESET COMMANDS =====
 
-// alias: keep /resetleaderboard, but make it ONLY reset weights
+// /resetleaderboard => ONLY resets /weigh leaderboard
 if (interaction.commandName === 'resetleaderboard') {
   if (!isAdmin(interaction)) {
     return interaction.reply({ content: '⛔ This command is admin-only.', ephemeral: true });
@@ -644,9 +585,10 @@ if (interaction.commandName === 'resetleaderboard') {
 
   doWeightReset();
   saveData();
-  return interaction.reply('🧹 Leaderboard has been reset.');
+  return interaction.reply('🧹 TopGold reset: /weigh leaderboard wiped.');
 }
 
+// /minereset => resets the gold economy (mine + daily + duel)
 if (interaction.commandName === 'minereset') {
   if (!isAdmin(interaction)) {
     return interaction.reply({ content: '⛔ This command is admin-only.', ephemeral: true });
@@ -654,19 +596,10 @@ if (interaction.commandName === 'minereset') {
 
   doMineReset();
   saveData();
-  return interaction.reply('🧹 Mine reset: mined gold + mine cooldown wiped.');
+  return interaction.reply('🧹 Gold reset: points + cooldowns + streak + W/L wiped.');
 }
 
-if (interaction.commandName === 'duelreset') {
-  if (!isAdmin(interaction)) {
-    return interaction.reply({ content: '⛔ This command is admin-only.', ephemeral: true });
-  }
-
-  doDuelReset();
-  saveData();
-  return interaction.reply('🧹 Duel reset: duel gold + W/L + duel cooldown wiped.');
-}
-
+// /seasonreset => wipes EVERYTHING (TopGold + Gold economy)
 if (interaction.commandName === 'seasonreset') {
   if (!isAdmin(interaction)) {
     return interaction.reply({ content: '⛔ This command is admin-only.', ephemeral: true });
@@ -674,7 +607,7 @@ if (interaction.commandName === 'seasonreset') {
 
   doSeasonReset();
   saveData();
-  return interaction.reply('🧹 Season reset: everything wiped.');
+  return interaction.reply('🧹 Season reset: everything wiped (TopGold + Gold).');
 }
 });
 

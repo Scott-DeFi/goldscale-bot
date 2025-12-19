@@ -22,11 +22,7 @@ const commands = [
 
       new SlashCommandBuilder()
     .setName('minereset')
-    .setDescription('Admin only: reset mine gold + mine cooldown'),
-
-  new SlashCommandBuilder()
-    .setName('duelreset')
-    .setDescription('Admin only: reset duel gold + W/L + duel cooldown'),
+    .setDescription('Admin only: reset gold economy (mine + daily + duel)'),
 
   new SlashCommandBuilder()
     .setName('seasonreset')
