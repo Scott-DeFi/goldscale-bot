@@ -203,78 +203,123 @@ client.on(Events.InteractionCreate, async interaction => {
       });
     }
 
+    const sleep = (ms) => new Promise(r => setTimeout(r, ms));
+
     if (action === "accept") {
-      // Only target can accept
-      if (interaction.user.id !== targetId) {
-        return interaction.reply({ content: "Only the challenged user can accept.", ephemeral: true });
-      }
-
-      // Ensure both users exist
-      const challenger = ensureUser(challengerId);
-      const target = ensureUser(targetId);
-
-      // Roll winner
-      const winnerId = Math.random() < 0.5 ? challengerId : targetId;
-      const loserId = winnerId === challengerId ? targetId : challengerId;
-
-      const winner = ensureUser(winnerId);
-      const loser = ensureUser(loserId);
-
-      // Apply payouts (single-bucket model)
-     winner.points = (winner.points || 0) + DUEL_WIN;
-
-     const lossAmount = Math.min(DUEL_LOSS, loser.points);
-     loser.points = clamp0((loser.points || 0) - lossAmount);
-
-      winner.wins += 1;
-      loser.losses += 1;
-
-      saveData();
-
-     // Fetch members for reliable avatars (guild-scoped)
-const winnerMember = await interaction.guild.members.fetch(winnerId);
-const loserMember  = await interaction.guild.members.fetch(loserId);
-
-const duelEmbed = new EmbedBuilder()
-  .setTitle('⚔️ Duel Result')
-  .setColor(0xf5c542) // gold vibe
-  .setThumbnail(winnerMember.displayAvatarURL({ extension: 'png', size: 256 }))
-  .addFields(
-    {
-      name: '🏆 Winner',
-      value: `<@${winnerId}> (+${DUEL_WIN})`,
-      inline: true,
-    },
-    {
-      name: '💀 Loser',
-      value: `<@${loserId}> (-${lossAmount})`,
-      inline: true,
-    },
-    {
-      name: '🏦 Updated Totals',
-      value:
-        `<@${winnerId}>: **${winner.points}** gold\n` +
-        `<@${loserId}>: **${loser.points}** gold`,
-      inline: false,
-    }
-  )
-  .setFooter({
-    text: `Defeated: ${loserMember.user.username}`,
-    iconURL: loserMember.displayAvatarURL({ extension: 'png', size: 64 }),
-  });
-
-await interaction.update({
-  content: null,
-  embeds: [duelEmbed],
-  components: [],
-});
-return;
-    }
-
-    return;
+  // Only target can accept
+  if (interaction.user.id !== targetId) {
+    return interaction.reply({ content: "Only the challenged user can accept.", ephemeral: true });
   }
 
-  
+  // We are going to animate edits, so defer the button interaction
+  await interaction.deferUpdate();
+
+  // Ensure both users exist
+  const challenger = ensureUser(challengerId);
+  const target = ensureUser(targetId);
+
+  // Roll winner
+  const winnerId = Math.random() < 0.5 ? challengerId : targetId;
+  const loserId = winnerId === challengerId ? targetId : challengerId;
+
+  const winner = ensureUser(winnerId);
+  const loser = ensureUser(loserId);
+
+  // Apply payouts (single-bucket model) — unchanged
+  winner.points = (winner.points || 0) + DUEL_WIN;
+
+  const lossAmount = Math.min(DUEL_LOSS, loser.points);
+  loser.points = clamp0((loser.points || 0) - lossAmount);
+
+  winner.wins += 1;
+  loser.losses += 1;
+
+  saveData();
+
+  // Fetch members for reliable avatars (guild-scoped)
+  const winnerMember = await interaction.guild.members.fetch(winnerId);
+  const loserMember  = await interaction.guild.members.fetch(loserId);
+
+  // ===== DRAMA / ANIMATION =====
+  // Build a temporary "fight" log embed that updates over time
+  const logBase = new EmbedBuilder()
+    .setTitle("🩸 Combat Log")
+    .setColor(0x2b2b2b);
+
+  const frames = [
+    "⚔️ Challengers step forward…",
+    "⚔️ Challengers step forward…\n\n⚖️ Gold on the line…",
+    "⚔️ Challengers step forward…\n\n⚖️ Gold on the line…\n\n🥶 Waiting for an opening…",
+    "⚔️ Challengers step forward…\n\n⚖️ Gold on the line…\n\n🥶 Waiting for an opening…\n\n🩸 A clean hit lands!",
+  ];
+
+  // First: remove buttons + show first log line
+  await interaction.editReply({
+    content: null,
+    embeds: [EmbedBuilder.from(logBase).setDescription(frames[0])],
+    components: [], // removes buttons
+  });
+
+  // Animate remaining lines
+  for (let i = 1; i < frames.length; i++) {
+    await sleep(550);
+    await interaction.editReply({
+      embeds: [EmbedBuilder.from(logBase).setDescription(frames[i])],
+      components: [],
+    });
+  }
+
+  // small final beat
+  await sleep(550);
+
+  // ===== FINAL RESULT EMBED (your original result box) =====
+  const duelEmbed = new EmbedBuilder()
+    .setTitle('⚔️ Duel Result')
+    .setColor(0xf5c542) // gold vibe
+    .setThumbnail(winnerMember.displayAvatarURL({ extension: 'png', size: 256 }))
+    .addFields(
+      {
+        name: '🏆 Winner',
+        value: `<@${winnerId}> (+${DUEL_WIN})`,
+        inline: true,
+      },
+      {
+        name: '💀 Loser',
+        value: `<@${loserId}> (-${lossAmount})`,
+        inline: true,
+      },
+      {
+        name: '🏦 Updated Totals',
+        value:
+          `<@${winnerId}>: **${winner.points}** gold\n` +
+          `<@${loserId}>: **${loser.points}** gold`,
+        inline: false,
+      }
+    )
+    .setFooter({
+      text: `Defeated: ${loserMember.user.username}`,
+      iconURL: loserMember.displayAvatarURL({ extension: 'png', size: 64 }),
+    });
+
+  // Show result + keep the final log under it 
+await interaction.editReply({
+  embeds: [
+    duelEmbed,
+    EmbedBuilder
+      .from(logBase)
+      .setDescription(
+        frames[frames.length - 1] + "\n\n💥 The duel is decided!"
+      ),
+  ],
+  components: [],
+});
+
+  return;
+}
+
+  return;
+}
+
   if (!interaction.isChatInputCommand()) return;
 
   // /weigh with cooldown + tracking
@@ -306,20 +351,34 @@ return;
     }
 
     
-    const ounces = randomOunces();
-    const rank = getWeightRank(ounces);
+    // ---- DRAMA WEIGH (no logic change) ----
+await interaction.deferReply();
 
-  
-    userData.totalOunces += ounces;
-    userData.lastWeigh = now;
-    saveData();
+const sleep = (ms) => new Promise(r => setTimeout(r, ms));
 
-    return interaction.reply({
-      content:
-        `💰 **Your gold weighs:** \`${ounces} troy oz\`\n` +
-        `🏅 **Rank for this weigh:** ${rank}\n` +
-        `🏦 **Your total:** \`${userData.totalOunces.toFixed(2)} troy oz\``,
-    });
+const ounces = randomOunces();
+const rank = getWeightRank(ounces);
+
+userData.totalOunces += ounces;
+userData.lastWeigh = now;
+saveData();
+
+const frames = [
+  "⚖️ Placing gold on the scale…",
+  "⚖️ Calibrating…",
+  "💡 Reading weight…",
+];
+
+for (const frame of frames) {
+  await interaction.editReply(frame);
+  await sleep(450);
+}
+
+return interaction.editReply(
+  `💰 **Your gold weighs:** \`${ounces} troy oz\`\n` +
+  `🏅 **Rank for this weigh:** ${rank}\n` +
+  `🏦 **Your total:** \`${userData.totalOunces.toFixed(2)} troy oz\``
+);
   }
 
   // /rank (fun random title, no data tracking)
