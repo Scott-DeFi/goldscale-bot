@@ -371,8 +371,10 @@ const frames = [
 
 for (const frame of frames) {
   await interaction.editReply(frame);
-  await sleep(450);
+  await sleep(1100);
 }
+
+await sleep(600);
 
 return interaction.editReply(
   `💰 **Your gold weighs:** \`${ounces} troy oz\`\n` +
