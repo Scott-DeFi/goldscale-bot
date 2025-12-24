@@ -241,17 +241,50 @@ client.on(Events.InteractionCreate, async interaction => {
   const loserMember  = await interaction.guild.members.fetch(loserId);
 
   // ===== DRAMA / ANIMATION =====
-  // Build a temporary "fight" log embed that updates over time
-  const logBase = new EmbedBuilder()
-    .setTitle("🩸 Combat Log")
-    .setColor(0x2b2b2b);
+const pick = (arr) => arr[Math.floor(Math.random() * arr.length)];
+const DIV = "\n━━━━━━━━━━━━━━━━━━━━\n";
 
-  const frames = [
-    "⚔️ Challengers step forward…",
-    "⚔️ Challengers step forward…\n\n⚖️ Gold on the line…",
-    "⚔️ Challengers step forward…\n\n⚖️ Gold on the line…\n\n🥶 Waiting for an opening…",
-    "⚔️ Challengers step forward…\n\n⚖️ Gold on the line…\n\n🥶 Waiting for an opening…\n\n🩸 A clean hit lands!",
-  ];
+const logBase = new EmbedBuilder()
+  .setTitle("⚔️ Combat Log")
+  .setColor(0xf5c542); // gold
+
+const stage1 = [
+  "⚔️ **Challengers step forward…**",
+  "⚔️ **Blades drawn… crowd goes silent…**",
+  "⚔️ **Eyes locked. No backing out.**",
+];
+
+const stage2 = [
+  "⚖️ **Gold on the line…**",
+  "💰 **Wager locked. Vault rules apply.**",
+  "🪙 **Stake set. Winner takes momentum.**",
+];
+
+const stage3 = [
+  "🥶 **Waiting for an opening…**",
+  "⚡ **Tension builds…**",
+  "🧠 **Reading movement… someone slips…**",
+];
+
+const stage4 = [
+  "🩸 **A clean hit lands!**",
+  "💥 **Steel sparks — direct strike!**",
+  "⚡ **Counter hit — big damage!**",
+];
+
+// Pick ONE line per stage (in order)
+const s1 = pick(stage1);
+const s2 = pick(stage2);
+const s3 = pick(stage3);
+const s4 = pick(stage4);
+
+// Build frames in order (no random stage order)
+const frames = [
+  `${s1}${DIV}`,
+  `${s1}\n${s2}${DIV}`,
+  `${s1}\n${s2}\n${s3}${DIV}`,
+  `${s1}\n${s2}\n${s3}\n${s4}${DIV}`,
+];
 
   // First: remove buttons + show first log line
   await interaction.editReply({
@@ -301,24 +334,25 @@ client.on(Events.InteractionCreate, async interaction => {
       iconURL: loserMember.displayAvatarURL({ extension: 'png', size: 64 }),
     });
 
-  // Show result + keep the final log under it 
+  // Show result 
 await interaction.editReply({
   embeds: [
     duelEmbed,
     EmbedBuilder
       .from(logBase)
       .setDescription(
-        frames[frames.length - 1] + "\n\n💥 The duel is decided!"
+        frames[frames.length - 1] +
+        "\n\n💥 **The duel is decided.**"
       ),
   ],
   components: [],
 });
 
-  return;
-}
+         return; 
+    }
 
-  return;
-}
+    return; 
+  }
 
   if (!interaction.isChatInputCommand()) return;
 
@@ -351,7 +385,7 @@ await interaction.editReply({
     }
 
     
-    // ---- DRAMA WEIGH (no logic change) ----
+    // DRAMA WEIGH
 await interaction.deferReply();
 
 const sleep = (ms) => new Promise(r => setTimeout(r, ms));
@@ -366,7 +400,7 @@ saveData();
 const frames = [
   "⚖️ Placing gold on the scale…",
   "⚖️ Calibrating…",
-  "💡 Reading weight…",
+  "⚖️ Reading weight…",
 ];
 
 for (const frame of frames) {
@@ -383,13 +417,38 @@ return interaction.editReply(
 );
   }
 
-  // /rank (fun random title, no data tracking)
   if (interaction.commandName === 'rank') {
-    const rank = getRandomGoldRank();
-    return interaction.reply({
-      content: `🧾 **Your gold rank:** \`${rank}\``,
-    });
+  const suspenseLines = [
+    "🔥 Power levels rising…",
+    "💪 Flex calibration in progress…",
+    "👑 Checking throne eligibility…",
+    "📜 Dusting off ancient ledgers…",
+    "🪨 Asking the magic rock…",
+    "🐒 Monkey brain activated…",
+  ];
+
+  const suspense = suspenseLines[Math.floor(Math.random() * suspenseLines.length)];
+  const rank = getRandomGoldRank();
+
+  const sleep = (ms) => new Promise(r => setTimeout(r, ms));
+
+  // Step 1: show suspense
+  await interaction.reply({ content: suspense });
+
+  // Step 2: pause
+  await sleep(1200); 
+
+  // Step 3: reveal
+  if (rank === 'Mythic Nugget Master') {
+    return interaction.editReply(
+      `👑 **MYTHIC NUGGET MASTER**\n✨ *Few ever see this.*`
+    );
   }
+
+  return interaction.editReply(
+    `🧾 **Your gold rank:** \`${rank}\``
+  );
+}
 
   // /topgold (leaderboard by ounces)
   if (interaction.commandName === 'topgold') {
@@ -488,42 +547,52 @@ return interaction.editReply(
 }
 
   // /daily (streak bonus)
-  if (interaction.commandName === 'daily') {
-    const userId = interaction.user.id;
-    const user = ensureUser(userId);
+if (interaction.commandName === 'daily') {
+  const userId = interaction.user.id;
+  const user = ensureUser(userId);
 
-    const diff = now - (user.lastDaily || 0);
-    if (diff < DAILY_COOLDOWN_MS) {
-      const hoursLeft = Math.ceil((DAILY_COOLDOWN_MS - diff) / (60 * 60 * 1000));
-      return interaction.reply({
-        content: `⏳ Daily already claimed. Try again in **${hoursLeft}h**.`,
-        ephemeral: true
-      });
-    }
-
-    // If they miss more than 48h, streak resets
-    if (user.lastDaily && (diff > (DAILY_COOLDOWN_MS * 2))) {
-      user.dailyStreak = 0;
-    }
-
-    user.dailyStreak += 1;
-
-    const base = 100;
-    const streakBonus = Math.min(user.dailyStreak * 10, 100); // +10/day, cap +100
-    const total = base + streakBonus;
-
-    user.points = (user.points || 0) + total;
-    user.lastDaily = now;
-
-    saveData();
-
-    return interaction.reply(
-      `🎁 ${interaction.user} claimed daily gold.\n` +
-      `🔥 Streak: **${user.dailyStreak}** days\n` +
-      `🪙 Payout: **+${total}** (Base ${base} + Streak ${streakBonus})\n` +
-      `🏦 Total Gold: **${user.points}**`
-    );
+  const diff = now - (user.lastDaily || 0);
+  if (diff < DAILY_COOLDOWN_MS) {
+    const hoursLeft = Math.ceil((DAILY_COOLDOWN_MS - diff) / (60 * 60 * 1000));
+    return interaction.reply({
+      content: `⏳ Daily already claimed. Try again in **${hoursLeft}h**.`,
+      ephemeral: true
+    });
   }
+
+  // 48 hr streak resets
+  if (user.lastDaily && (diff > (DAILY_COOLDOWN_MS * 2))) {
+    user.dailyStreak = 0;
+  }
+
+  user.dailyStreak += 1;
+
+  const base = 100;
+  const streakBonus = Math.min(user.dailyStreak * 10, 100); // +10/day, cap +100
+  const total = base + streakBonus;
+
+  user.points = (user.points || 0) + total;
+  user.lastDaily = now;
+
+  saveData();
+
+  const flavorLines = [
+    "🔒 Vault check-in complete…",
+    "🗝️ Daily vault seal verified…",
+    "📜 Ledger updated for today…",
+    "🪙 Gold reserves acknowledged…",
+  ];
+
+  const flavor = flavorLines[Math.floor(Math.random() * flavorLines.length)];
+
+  return interaction.reply(
+    `${flavor}\n\n` +
+    `🗝️ ${interaction.user} claimed daily gold.\n` +
+    `🔥 Streak: **${user.dailyStreak}** days\n` +
+    `🪙 Payout: **+${total}** (Base ${base} + Streak ${streakBonus})\n` +
+    `🏦 Total Gold: **${user.points}**`
+  );
+}
 
   //  /duel @user (accept button)
   if (interaction.commandName === 'duel') {
