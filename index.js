@@ -243,7 +243,6 @@ client.on(Events.InteractionCreate, async interaction => {
   // ===== DRAMA / ANIMATION =====
 const pick = (arr) => arr[Math.floor(Math.random() * arr.length)];
 const HEADER_DIV = "━━━━━━━━━━━━━━━━━━━━\n";  
-const DIV = "\n━━━━━━━━━━━━━━━━━━━━\n"; 
 
 const logBase = new EmbedBuilder()
   .setTitle("⚔️ Combat Log")
@@ -285,9 +284,9 @@ const s4 = `${s4Base}\n\n${swingLine}`;
 // Build frames in order (no random stage order)
 const frames = [
   `${HEADER_DIV}\n\n${s1}`,
-  `${HEADER_DIV}${s1}\n\n${s2}`,
-  `${HEADER_DIV}${s1}\n\n${s2}\n\n${s3}`,
-  `${HEADER_DIV}${s1}\n\n${s2}\n\n${s3}\n\n${s4}`,
+  `${HEADER_DIV}\n\n${s1}\n\n${s2}`,
+  `${HEADER_DIV}\n\n${s1}\n\n${s2}\n\n${s3}`,
+  `${HEADER_DIV}\n\n${s1}\n\n${s2}\n\n${s3}\n\n${s4}`,
 ];
 
   // First: remove buttons + show first log line
@@ -299,7 +298,7 @@ const frames = [
 
   // Animate remaining lines
   for (let i = 1; i < frames.length; i++) {
-    await sleep(1500);
+    await sleep(2500);
     await interaction.editReply({
       embeds: [EmbedBuilder.from(logBase).setDescription(frames[i])],
       components: [],
@@ -307,7 +306,7 @@ const frames = [
   }
 
   // small final beat
-  await sleep(1600);
+  await sleep(2800);
 
   // ===== FINAL RESULT EMBED (your original result box) =====
   const duelEmbed = new EmbedBuilder()
@@ -338,7 +337,7 @@ const frames = [
       iconURL: loserMember.displayAvatarURL({ extension: 'png', size: 64 }),
     });
 
-  // Show result 
+  // Show result
 await interaction.editReply({
   embeds: [
     duelEmbed,
@@ -346,8 +345,8 @@ await interaction.editReply({
       .from(logBase)
       .setDescription(
         frames[frames.length - 1] +
-        `\n\n${DIV}\n\n` +
-        "\n\n💥 **The duel is decided.**"
+        `\n\n${HEADER_DIV}\n\n` +
+        "💥 The duel is decided."
       ),
   ],
   components: [],
@@ -410,10 +409,10 @@ const frames = [
 
 for (const frame of frames) {
   await interaction.editReply(frame);
-  await sleep(1200);
+  await sleep(2000);
 }
 
-await sleep(1300);
+await sleep(2100);
 
 return interaction.editReply(
   `💰 **Your gold weighs:** \`${ounces} troy oz\`\n` +
@@ -518,7 +517,7 @@ return interaction.editReply(
 
   for (const frame of frames) {
     await interaction.editReply({ content: frame, embeds: [] });
-    await new Promise(r => setTimeout(r, 800));
+    await new Promise(r => setTimeout(r, 900));
   }
 
   // ROLL RESULT (UNCHANGED LOGIC)
@@ -548,10 +547,11 @@ return interaction.editReply(
 const member = await interaction.guild.members.fetch(userId);
 
 const mineEmbed = new EmbedBuilder()
-  .setColor(0xf5c542) // gold 
+  .setColor(0xf5c542) // gold
   .setThumbnail(member.displayAvatarURL({ extension: 'png', size: 256 }))
   .setDescription(
     `${emoji} **${flavor}**\n` +
+    `━━━━━━━━━━━━━━━━━━━━\n` +
     `🪙 ${interaction.user} mined **${sign}${delta}** gold\n` +
     `🏦 Total Gold: **${user.points}**`
   );
@@ -610,7 +610,7 @@ if (interaction.commandName === 'daily') {
   await interaction.editReply(flavor);
 
   // Pause before reveal
-  await new Promise(r => setTimeout(r, 1200));
+  await new Promise(r => setTimeout(r, 2000));
 
   // Fetch member for PFP
   const member = await interaction.guild.members.fetch(userId);
