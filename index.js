@@ -19,7 +19,7 @@ const COOLDOWN_MS = 60 * 60 * 1000; // 1 hour cooldown for /weigh
 const MINE_COOLDOWN_MS = 60 * 60 * 1000; // 1 hour cooldown for /mine
 const DAILY_COOLDOWN_MS = 24 * 60 * 60 * 1000; // 24h for /daily
 const DUEL_COOLDOWN_MS = 30 * 60 * 1000; // 30 min cooldown for /duel
-const DUEL_EXPIRE_MS = 3 * 60 * 1000; // 3 min to accept/decline duel
+const DUEL_EXPIRE_MS = 5 * 60 * 1000; // 5 min to accept/decline duel
 
 const DUEL_WIN = 50;
 const DUEL_LOSS = 35;
@@ -284,7 +284,7 @@ const s4 = `${s4Base}\n\n${swingLine}`;
 
 // Build frames in order (no random stage order)
 const frames = [
-  `${HEADER_DIV}${s1}`,
+  `${HEADER_DIV}\n\n${s1}`,
   `${HEADER_DIV}${s1}\n\n${s2}`,
   `${HEADER_DIV}${s1}\n\n${s2}\n\n${s3}`,
   `${HEADER_DIV}${s1}\n\n${s2}\n\n${s3}\n\n${s4}`,
@@ -299,7 +299,7 @@ const frames = [
 
   // Animate remaining lines
   for (let i = 1; i < frames.length; i++) {
-    await sleep(1000);
+    await sleep(1500);
     await interaction.editReply({
       embeds: [EmbedBuilder.from(logBase).setDescription(frames[i])],
       components: [],
@@ -307,7 +307,7 @@ const frames = [
   }
 
   // small final beat
-  await sleep(1200);
+  await sleep(1600);
 
   // ===== FINAL RESULT EMBED (your original result box) =====
   const duelEmbed = new EmbedBuilder()
@@ -346,6 +346,7 @@ await interaction.editReply({
       .from(logBase)
       .setDescription(
         frames[frames.length - 1] +
+        `\n\n${DIV}\n\n` +
         "\n\n💥 **The duel is decided.**"
       ),
   ],
@@ -516,8 +517,8 @@ return interaction.editReply(
 ];
 
   for (const frame of frames) {
-    await interaction.editReply(frame);
-    await new Promise(r => setTimeout(r, 550));
+    await interaction.editReply({ content: frame, embeds: [] });
+    await new Promise(r => setTimeout(r, 800));
   }
 
   // ROLL RESULT (UNCHANGED LOGIC)
@@ -556,7 +557,9 @@ const mineEmbed = new EmbedBuilder()
   );
 
 return interaction.editReply({
+  content: null,         
   embeds: [mineEmbed],
+  components: [],
 });
 }
 
@@ -699,7 +702,7 @@ const challengeEmbed = new EmbedBuilder()
       value: `Winner **+${DUEL_WIN}** | Loser **-${DUEL_LOSS}** (never below 0)`,
       inline: false,
     },
-    { name: '⏳ Time Limit', value: 'Accept within **3 minutes**.', inline: false },
+    { name: '⏳ Time Limit', value: 'Accept within **5 minutes**.', inline: false },
   )
 
   .setFooter({
