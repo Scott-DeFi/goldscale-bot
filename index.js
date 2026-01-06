@@ -25,6 +25,7 @@ const DUEL_WIN = 50;
 const DUEL_LOSS = 35;
 
 const allowedChannel = "1441424180791873617";
+const VERIFY_CHANNEL_ID = "1365855471952592896";
 
 // ===== DATA STORAGE =====
 const DATA_FILE = path.join(__dirname, 'gold-data.json');
@@ -75,6 +76,12 @@ function ensureUser(userId) {
       lastDuel: 0,
       wins: 0,
       losses: 0,
+
+      // wallet link
+      wallet: "",
+      walletLinkedAt: 0,
+      redeemPending: false,
+
     };
     return goldData[userId];
   }
@@ -94,6 +101,10 @@ function ensureUser(userId) {
   if (typeof u.lastDuel !== 'number') u.lastDuel = 0;
   if (typeof u.wins !== 'number') u.wins = 0;
   if (typeof u.losses !== 'number') u.losses = 0;
+
+  if (typeof u.wallet !== "string") u.wallet = "";
+  if (typeof u.walletLinkedAt !== "number") u.walletLinkedAt = 0;
+  if (typeof u.redeemPending !== "boolean") u.redeemPending = false;
 
   return u;
 }
@@ -158,17 +169,37 @@ client.once(Events.ClientReady, readyClient => {
 client.on(Events.InteractionCreate, async interaction => {
   const now = Date.now();
 
-  // Buttons (duel accept/decline) 
-  if (interaction.channelId !== allowedChannel) {
-    if (interaction.isChatInputCommand() || interaction.isButton()) {
+  // ===== CHANNEL GATES =====
+// - /verifywallet only in VERIFY_CHANNEL_ID
+// - everything else (commands + buttons) only in allowedChannel
+
+if (interaction.isChatInputCommand()) {
+  if (interaction.commandName === "verifywallet") {
+    if (interaction.channelId !== VERIFY_CHANNEL_ID) {
       return interaction.reply({
-        content: `⚠️ GoldScale commands only work in <#${allowedChannel}>.`,
-        ephemeral: true
+        content: `⚠️ Use /verifywallet in <#${VERIFY_CHANNEL_ID}> only.`,
+        ephemeral: true,
       });
     }
-    return;
+  } else {
+    if (interaction.channelId !== allowedChannel) {
+      return interaction.reply({
+        content: `⚠️ GoldScale commands only work in <#${allowedChannel}>.`,
+        ephemeral: true,
+      });
+    }
   }
+}
 
+if (interaction.isButton()) {
+  // duel buttons should only work in the main GoldScale channel
+  if (interaction.channelId !== allowedChannel) {
+    return interaction.reply({
+      content: `⚠️ GoldScale buttons only work in <#${allowedChannel}>.`,
+      ephemeral: true,
+    });
+  }
+}
 
   if (interaction.isButton()) {
     const id = interaction.customId || "";
@@ -359,6 +390,40 @@ await interaction.editReply({
   }
 
   if (!interaction.isChatInputCommand()) return;
+
+  // /verifywallet <address>  (STEP 1: save only)
+if (interaction.commandName === "verifywallet") {
+  const userId = interaction.user.id;
+  const user = ensureUser(userId);
+
+  const address = interaction.options.getString("address", true).trim();
+
+  // basic Solana pubkey validation (no extra deps)
+  let ok = true;
+  try {
+    // quick length sanity + base58-ish check
+    if (address.length < 32 || address.length > 44) ok = false;
+  } catch {
+    ok = false;
+  }
+
+  if (!ok) {
+    return interaction.reply({
+      content: "Invalid Solana wallet address.",
+      ephemeral: true
+    });
+  }
+
+  user.wallet = address;
+  user.walletLinkedAt = Date.now();
+  user.redeemPending = false;
+  saveData();
+
+  return interaction.reply({
+    content: `✅ Wallet saved: \`${address.slice(0, 4)}…${address.slice(-4)}\``,
+    ephemeral: true,
+  });
+}
 
   // /weigh with cooldown + tracking
   if (interaction.commandName === 'weigh') {
