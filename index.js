@@ -27,6 +27,53 @@ const DUEL_LOSS = 35;
 const allowedChannel = "1441424180791873617";
 const VERIFY_CHANNEL_ID = "1365855471952592896";
 
+// Wallet Verified role id (copy from Discord role settings)
+const VERIFIED_ROLE_ID = process.env.VERIFIED_ROLE_ID || "";
+
+// Helius + FORTKNOX gate
+const HELIUS_API_KEY = process.env.HELIUS_API_KEY || "";
+const FORTKNOX_MINT = "FfN1Cgy56n9GVyeXN1LKxyKLegVpSf74jZ7k5KYrH6HC";
+const MIN_FORTKNOX_BALANCE = 100000;
+
+async function getFortKnoxBalance(walletAddress) {
+  if (!HELIUS_API_KEY) throw new Error("Missing HELIUS_API_KEY");
+
+  const url = `https://mainnet.helius-rpc.com/?api-key=${HELIUS_API_KEY}`;
+
+  const body = {
+    jsonrpc: "2.0",
+    id: "fortknox-balance",
+    method: "getTokenAccountsByOwner",
+    params: [
+      walletAddress,
+      { mint: FORTKNOX_MINT },
+      { encoding: "jsonParsed" }
+    ]
+  };
+
+  const res = await fetch(url, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(body),
+  });
+
+  if (!res.ok) {
+    throw new Error(`Helius RPC error ${res.status}`);
+  }
+
+  const json = await res.json();
+  const accounts = json?.result?.value || [];
+
+  let total = 0;
+  for (const acc of accounts) {
+    const amt =
+      acc?.account?.data?.parsed?.info?.tokenAmount?.uiAmount || 0;
+    total += amt;
+  }
+
+  return total;
+}
+
 // ===== DATA STORAGE =====
 const DATA_FILE = path.join(__dirname, 'gold-data.json');
 
@@ -391,38 +438,68 @@ await interaction.editReply({
 
   if (!interaction.isChatInputCommand()) return;
 
-  // /verifywallet <address>  (STEP 1: save only)
+  // /verifywallet — holder gate + role + save
 if (interaction.commandName === "verifywallet") {
+  // hard lock to verify channel (extra safety)
+  if (interaction.channelId !== VERIFY_CHANNEL_ID) {
+    return interaction.reply({
+      content: `⚠️ Use /verifywallet in <#${VERIFY_CHANNEL_ID}> only.`,
+      ephemeral: true,
+    });
+  }
+
   const userId = interaction.user.id;
   const user = ensureUser(userId);
 
   const address = interaction.options.getString("address", true).trim();
 
-  // basic Solana pubkey validation (no extra deps)
-  let ok = true;
-  try {
-    // quick length sanity + base58-ish check
-    if (address.length < 32 || address.length > 44) ok = false;
-  } catch {
-    ok = false;
-  }
-
-  if (!ok) {
+  // basic sanity check
+  if (address.length < 32 || address.length > 44) {
     return interaction.reply({
       content: "Invalid Solana wallet address.",
       ephemeral: true
     });
   }
 
-  user.wallet = address;
-  user.walletLinkedAt = Date.now();
-  user.redeemPending = false;
-  saveData();
+  await interaction.deferReply({ ephemeral: true });
 
-  return interaction.reply({
-    content: `✅ Wallet saved: \`${address.slice(0, 4)}…${address.slice(-4)}\``,
-    ephemeral: true,
-  });
+  try {
+    const bal = await getFortKnoxBalance(address);
+
+    if (bal < MIN_FORTKNOX_BALANCE) {
+      return interaction.editReply(
+        `⛔ Holder gate failed.\n` +
+        `Wallet has ~${Math.floor(bal).toLocaleString()} FORTKNOX.\n` +
+        `Need **${MIN_FORTKNOX_BALANCE.toLocaleString()}**.`
+      );
+    }
+
+    // Save wallet ONLY if gate passes
+    user.wallet = address;
+    user.walletLinkedAt = Date.now();
+    user.redeemPending = false;
+    saveData();
+
+    // Assign role
+    if (!VERIFIED_ROLE_ID) {
+      return interaction.editReply(
+        `✅ Gate OK (~${Math.floor(bal).toLocaleString()} FORTKNOX).\n` +
+        `Wallet saved, but role not assigned (VERIFIED_ROLE_ID missing).`
+      );
+    }
+
+    const member = await interaction.guild.members.fetch(userId);
+    await member.roles.add(VERIFIED_ROLE_ID);
+
+    return interaction.editReply(
+      `✅ Verified + saved: \`${address.slice(0, 4)}…${address.slice(-4)}\`\n` +
+      `Gate OK (~${Math.floor(bal).toLocaleString()} FORTKNOX). Role assigned.`
+    );
+  } catch (e) {
+    return interaction.editReply(
+      `❌ Verification failed. ${String(e?.message || e)}`
+    );
+  }
 }
 
   // /weigh with cooldown + tracking

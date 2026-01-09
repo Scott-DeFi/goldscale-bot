@@ -38,6 +38,16 @@ const commands = [
     .setName('daily')
     .setDescription('Daily gold + streak bonus'),
 
+    // /verifyallet <address>
+  new SlashCommandBuilder()
+    .setName('verifywallet')
+    .setDescription('Link your Solana wallet for GoldScale rewards')
+    .addStringOption(opt =>
+      opt.setName('address')
+        .setDescription('Your Solana wallet address')
+        .setRequired(true)
+    ),
+
   //  /duel @user
   new SlashCommandBuilder()
     .setName('duel')

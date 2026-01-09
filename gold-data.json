@@ -1,17 +1,20 @@
 {
   "1363700624272916500": {
-    "totalOunces": 75.18,
-    "lastWeigh": 1763761776334,
-    "points": 250,
-    "lastMine": 1765695886658,
-    "lastDaily": 1765647802729,
+    "totalOunces": 85.92,
+    "lastWeigh": 1767936146376,
+    "points": 371,
+    "lastMine": 1767935806056,
+    "lastDaily": 1767932908629,
     "dailyStreak": 1,
     "lastDuel": 0,
     "wins": 0,
     "losses": 0,
     "minedGold": 250,
     "dailyGold": 0,
-    "duelGold": 0
+    "duelGold": 0,
+    "wallet": "AqKf6yT6UhdGL6RfQ2Lj2q962ScGNDKgRpjwydjdAPxJ",
+    "walletLinkedAt": 1767935830697,
+    "redeemPending": false
   },
   "1325488534999662714": {
     "totalOunces": 26.39,
