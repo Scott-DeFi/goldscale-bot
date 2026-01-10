@@ -28,7 +28,9 @@ const allowedChannel = "1441424180791873617";
 const VERIFY_CHANNEL_ID = "1365855471952592896";
 
 // Wallet Verified role id (copy from Discord role settings)
-const VERIFIED_ROLE_ID = process.env.VERIFIED_ROLE_ID || "";
+const VERIFIED_ROLE_ID = process.env.VERIFIED_ROLE_ID || ""; // Vault Verified (100k+)
+const ELITE_ROLE_ID = process.env.ELITE_ROLE_ID || "";       // Vault Elite (1M+)
+const WHALE_ROLE_ID = process.env.WHALE_ROLE_ID || "";       // Vault Whale (10M+)
 
 // Helius + FORTKNOX gate
 const HELIUS_API_KEY = process.env.HELIUS_API_KEY || "";
@@ -217,8 +219,6 @@ client.on(Events.InteractionCreate, async interaction => {
   const now = Date.now();
 
   // ===== CHANNEL GATES =====
-// - /verifywallet only in VERIFY_CHANNEL_ID
-// - everything else (commands + buttons) only in allowedChannel
 
 if (interaction.isChatInputCommand()) {
   if (interaction.commandName === "verifywallet") {
@@ -480,21 +480,59 @@ if (interaction.commandName === "verifywallet") {
     user.redeemPending = false;
     saveData();
 
-    // Assign role
-    if (!VERIFIED_ROLE_ID) {
-      return interaction.editReply(
-        `✅ Gate OK (~${Math.floor(bal).toLocaleString()} FORTKNOX).\n` +
-        `Wallet saved, but role not assigned (VERIFIED_ROLE_ID missing).`
-      );
-    }
+   // ===== ROLE SYNC (Vault Verified + tiers) =====
+const member = await interaction.guild.members.fetch(userId);
 
-    const member = await interaction.guild.members.fetch(userId);
-    await member.roles.add(VERIFIED_ROLE_ID);
+// helper safe remove/add
+const safeRemove = async (roleId) => {
+  if (!roleId) return;
+  if (member.roles.cache.has(roleId)) {
+    await member.roles.remove(roleId).catch(() => {});
+  }
+};
+const safeAdd = async (roleId) => {
+  if (!roleId) return;
+  if (!member.roles.cache.has(roleId)) {
+    await member.roles.add(roleId);
+  }
+};
 
-    return interaction.editReply(
-      `✅ Verified + saved: \`${address.slice(0, 4)}…${address.slice(-4)}\`\n` +
-      `Gate OK (~${Math.floor(bal).toLocaleString()} FORTKNOX). Role assigned.`
-    );
+// always clear tier roles first (keeps status accurate)
+await safeRemove(ELITE_ROLE_ID);
+await safeRemove(WHALE_ROLE_ID);
+
+// always add Vault Verified (they passed the 100k gate)
+if (!VERIFIED_ROLE_ID) {
+  return interaction.editReply(
+    `✅ Gate OK (~${Math.floor(bal).toLocaleString()} FORTKNOX). Wallet saved.\n` +
+    `⚠️ VERIFIED_ROLE_ID missing in env so role was not assigned.`
+  );
+}
+await safeAdd(VERIFIED_ROLE_ID);
+
+// add ONE tier role on top (keep Vault Verified for claims)
+let tierText = "Vault Verified";
+
+if (bal >= 10_000_000) {
+  if (WHALE_ROLE_ID) {
+    await safeAdd(WHALE_ROLE_ID);
+    tierText = "Vault Verified + Vault Whale";
+  } else {
+    tierText = "Vault Verified (Vault Whale role missing)";
+  }
+} else if (bal >= 1_000_000) {
+  if (ELITE_ROLE_ID) {
+    await safeAdd(ELITE_ROLE_ID);
+    tierText = "Vault Verified + Vault Elite";
+  } else {
+    tierText = "Vault Verified (Vault Elite role missing)";
+  }
+}
+return interaction.editReply(
+  `✅ Verified + saved: \`${address.slice(0, 4)}…${address.slice(-4)}\`\n` +
+  `Gate OK (~${Math.floor(bal).toLocaleString()} FORTKNOX).\n` +
+  `Roles: **${tierText}**`
+);
   } catch (e) {
     return interaction.editReply(
       `❌ Verification failed. ${String(e?.message || e)}`
